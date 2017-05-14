@@ -6,7 +6,9 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.List;
 
 import org.apache.poi.hssf.usermodel.HSSFCell;
@@ -15,14 +17,21 @@ import org.apache.poi.hssf.usermodel.HSSFDataFormat;
 import org.apache.poi.hssf.usermodel.HSSFRow;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
+import com.sun.org.apache.xalan.internal.xsltc.compiler.util.ResultTreeType;
+
 public class EarningsAnalysis {
 
 	List<Stock> stockList = new ArrayList<Stock>();
+	private String resultTime=""; 
 
 	private void showStocks() {
 		for (int i = 0; i < stockList.size(); i++) {
@@ -52,7 +61,7 @@ public class EarningsAnalysis {
 					stock.setReportLink(link.attr("href"));
 					String[] bits = link.attr("href").split("/");
 					stock.setTicker(bits[bits.length - 1]);
-					// if(stock.getTicker().equalsIgnoreCase("albo"))
+					//if(stock.getTicker().equalsIgnoreCase("aldx"))
 					stockList.add(stock);
 				}
 
@@ -69,6 +78,13 @@ public class EarningsAnalysis {
 		try {
 			// need http protocol
 			doc = Jsoup.connect(strURL).get();
+			String strTemp = doc.toString();
+			if(strTemp.contains("after market close")) {
+				resultTime = "After Hours";
+			}else if(strTemp.contains("before market open")) {
+				resultTime = "Pre Market";
+			}
+			
 			SimpleDateFormat formatter = new SimpleDateFormat("MM/dd/yyyy");
 
 			// get all links
@@ -81,6 +97,19 @@ public class EarningsAnalysis {
 				if (link.text().contains("/") && !link.text().contains("n/a")) {
 					debug("Earnings date : " + (link.text()));
 					dateList.add(formatter.parse(link.text()));
+					
+					//get previous two trading days
+ 				    Calendar previousDate = Calendar.getInstance();
+					previousDate.setTime(formatter.parse(link.text()));
+					int jj=0;
+  				    while(jj < 2){
+  				    	previousDate = Util.getPreviousDate(previousDate.getTime());
+  				    	if(Util.isBusinessDay(previousDate)){
+  				    		debug("Previous " + jj + " date : " + previousDate.getTime());
+  				    		dateList.add(previousDate.getTime());
+  				    		jj++;
+  				    	}
+					}
 				}
 			}
 
@@ -142,8 +171,12 @@ public class EarningsAnalysis {
 		HSSFCell cellA7 = row1.createCell((short) 6);
 		cellA7.setCellValue("Close");
 
-		HSSFCell cellA8 = row1.createCell((short) 6);
+		HSSFCell cellA8 = row1.createCell((short) 7);
 		cellA8.setCellValue("Percentage");
+		
+		HSSFCell cellA9 = row1.createCell((short) 8);
+		cellA9.setCellValue("Time");
+		
 
 	}
 
@@ -162,10 +195,10 @@ public class EarningsAnalysis {
 			// get List of Stocks from reporing earnings for the given date.
 			List<String> strDateList = new ArrayList<String>();
 			strDateList.add("2017-May-15");
-			/*strDateList.add("2017-May-16");
+			strDateList.add("2017-May-16");
 			strDateList.add("2017-May-17");
 			strDateList.add("2017-May-18");
-			strDateList.add("2017-May-19");*/
+			strDateList.add("2017-May-19");
 			
 
 			for (int k = 0; k < strDateList.size(); k++) {
@@ -228,14 +261,18 @@ public class EarningsAnalysis {
 						cellA6.setCellValue(price.getClose());
 						cellA6.setCellStyle(doubleStyle);
 
-						HSSFCell cellA7 = row1.createCell((short) 6);
+						HSSFCell cellA7 = row1.createCell((short) 7);
 						cellA7.setCellValue(((price.getHigh() - price.getOpen()) / price.getOpen()) * 100);
 						cellA7.setCellStyle(doubleStyle);
+						
+						HSSFCell cellA8 = row1.createCell((short) 8);
+						cellA8.setCellValue(ea.resultTime);
+
 
 					}
 				}
 			}
-
+			
 			workbook.write(fileOut);
 			fileOut.flush();
 			fileOut.close();
@@ -249,5 +286,5 @@ public class EarningsAnalysis {
 		}
 
 	}
-
+	
 }
